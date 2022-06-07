@@ -1,12 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/blog/syntax-molokai.css">
+    <link rel="stylesheet" href="/blog/style.css">
     <meta charset="utf-8">
     <title>{{ page.title }}</title>
   </head>
+
+  <style>
+    pre {
+            overflow-x: auto;
+            white-space: pre-wrap;
+            white-space: -moz-pre-wrap;
+            white-space: -pre-wrap;
+            white-space: -o-pre-wrap;
+            word-wrap: break-word;
+         }
+    
+    h1 {
+      color: #b096f0;
+    }
+
+    h2 {
+      color: #b096f0;
+    }
+
+    h3 {
+      color: #b096f0;
+    }
+      
+    h4 {
+      color: #b096f0;
+    }
+  </style>
+
   <body>
-    {{ page.title }}
-    {{ content }}
+    <center>
+      <div style="margin: 10px; max-width: 700px; text-align: left">
+        <h1>{{ page.title }}</h1>
+        <h3>{{page.date | date_to_string}}</h3>
+        {{ content }}
+      </div>
+    </center>
   </body>
 </html>

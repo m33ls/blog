@@ -13,6 +13,9 @@ liquid:
   strict_filters    : false
   strict_variables  : false
 
+markdown: kramdown
+highlighter: rouge
+
 # Markdown Processors
 kramdown:
   auto_ids          : true
