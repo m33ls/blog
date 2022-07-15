@@ -9,34 +9,23 @@
 
   <style>
     pre {
-            overflow-x: auto;
-            white-space: pre-wrap;
-            white-space: -moz-pre-wrap;
-            white-space: -pre-wrap;
-            white-space: -o-pre-wrap;
-            word-wrap: break-word;
-         }
+      overflow-x: auto;
+      white-space: pre-wrap;
+      white-space: -moz-pre-wrap;
+      white-space: -pre-wrap;
+      white-space: -o-pre-wrap;
+      word-wrap: break-word;
+    }
     
-    h1 {
-      color: #b096f0;
-    }
-
-    h2 {
-      color: #b096f0;
-    }
-
-    h3 {
-      color: #b096f0;
-    }
-      
-    h4 {
+    h1, h2, h3, h4 {
       color: #b096f0;
     }
   </style>
 
   <body>
     <center>
-      <div style="margin: 10px; max-width: 700px; text-align: left">
+      <div style="margin: 10px; margin-top: 40px; margin-bottom: 40px; max-width: 750px; text-align: left">
+        <a href="/blog/" style="text-decoration: none;">← Back</a>
         <h1>{{ page.title }}</h1>
         <h3>{{page.date | date_to_string}}</h3>
         {{ content }}

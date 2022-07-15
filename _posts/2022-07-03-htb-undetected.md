@@ -40,7 +40,7 @@ Opening the website in a browser shows the home page but viewing most of the sit
 Trying to open the cart shows a notice from the site administrator.
 
 ```bash
-> [http://store.djewelry.htb/cart.php#](http://store.djewelry.htb/cart.php#)
+> http://store.djewelry.htb/cart.php
 
 Notice
 Due to a website migration, we are currently not taking any online orders. Contact us if you wish to make a purchase.
